@@ -1,27 +1,38 @@
 <?php
 
+use App\Http\Controllers\FeatureTestController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
-Route::inertia('/', 'Welcome')->name('home');
+Route::get('/', [FeatureTestController::class, 'index'])->name('home');
+
+Route::prefix('feature-tests')->name('feature-tests.')->controller(FeatureTestController::class)->group(function () {
+    Route::post('records', 'storeRecord')->name('records.store');
+    Route::put('records/{record}', 'updateRecord')->name('records.update');
+    Route::delete('records/{record}', 'destroyRecord')->name('records.destroy');
+    Route::post('storage', 'storage')->name('storage');
+    Route::post('queue', 'dispatchJob')->name('queue.dispatch');
+    Route::get('queue/{token}', 'jobStatus')->name('queue.status');
+    Route::get('scheduler', 'schedulerHeartbeat')->name('scheduler');
+    Route::post('mail', 'sendMail')->middleware('throttle:5,1')->name('mail');
+});
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'Dashboard')->name('dashboard');
 });
 
 require __DIR__.'/settings.php';
-Route::get('test', function(){
+Route::get('test', function () {
 
-return 'this is test route';
+    return 'this is test route';
 });
-
 
 Route::get('/test-s3', function () {
     $disk = Storage::disk('s3');
 
-    $path = 'tests/' . Str::uuid() . '.txt';
-    $content = 'S3 storage test: ' . now()->toIso8601String();
+    $path = 'tests/'.Str::uuid().'.txt';
+    $content = 'S3 storage test: '.now()->toIso8601String();
 
     try {
         // 1. Upload
@@ -51,7 +62,7 @@ Route::get('/test-s3', function () {
             ],
             'path' => $path,
         ]);
-    } catch (\Throwable $e) {
+    } catch (Throwable $e) {
         report($e);
 
         return response()->json([
