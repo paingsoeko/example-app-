@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { Head, useHttp } from '@inertiajs/vue3';
-import { useIntervalFn } from '@vueuse/core';
-import { onUnmounted, ref } from 'vue';
+import { Head, useHttp } from "@inertiajs/vue3";
+import { useIntervalFn } from "@vueuse/core";
+import { onUnmounted, ref } from "vue";
 import {
+    cache,
     destroyRecord,
     dispatchJob,
     jobStatus,
@@ -11,21 +12,21 @@ import {
     storage,
     storeRecord,
     updateRecord,
-} from '@/actions/App/Http/Controllers/FeatureTestController';
-import InputError from '@/components/InputError.vue';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+} from "@/actions/App/Http/Controllers/FeatureTestController";
+import InputError from "@/components/InputError.vue";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
     Card,
     CardContent,
     CardDescription,
     CardHeader,
     CardTitle,
-} from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
-type TestStatus = 'idle' | 'running' | 'passed' | 'failed';
+type TestStatus = "idle" | "running" | "passed" | "failed";
 
 type TestRecord = {
     id: number;
@@ -43,42 +44,43 @@ type SchedulerStatus = {
 const props = defineProps<{
     environment: Record<string, string>;
     disks: string[];
+    cacheStores: string[];
     records: TestRecord[];
     scheduler: SchedulerStatus;
 }>();
 
 const statusLabels: Record<TestStatus, string> = {
-    idle: 'Not run',
-    running: 'Running',
-    passed: 'Passed',
-    failed: 'Failed',
+    idle: "Not run",
+    running: "Running",
+    passed: "Passed",
+    failed: "Failed",
 };
 
 function statusVariant(
     status: TestStatus,
-): 'default' | 'secondary' | 'destructive' | 'outline' {
+): "default" | "secondary" | "destructive" | "outline" {
     switch (status) {
-        case 'passed':
-            return 'default';
-        case 'failed':
-            return 'destructive';
-        case 'running':
-            return 'secondary';
+        case "passed":
+            return "default";
+        case "failed":
+            return "destructive";
+        case "running":
+            return "secondary";
         default:
-            return 'outline';
+            return "outline";
     }
 }
 
 function formatTime(value: string | null): string {
-    return value ? new Date(value).toLocaleString() : '—';
+    return value ? new Date(value).toLocaleString() : "—";
 }
 
 function errorMessage(data: unknown, fallback: string): string {
-    if (data && typeof data === 'object' && 'error' in data) {
+    if (data && typeof data === "object" && "error" in data) {
         return String((data as { error: unknown }).error);
     }
 
-    if (data && typeof data === 'object' && 'message' in data) {
+    if (data && typeof data === "object" && "message" in data) {
         return String((data as { message: unknown }).message);
     }
 
@@ -89,12 +91,12 @@ function errorMessage(data: unknown, fallback: string): string {
  * Database CRUD
  */
 const records = ref<TestRecord[]>(props.records);
-const databaseStatus = ref<TestStatus>('idle');
-const databaseMessage = ref('');
+const databaseStatus = ref<TestStatus>("idle");
+const databaseMessage = ref("");
 const editingRecordId = ref<number | null>(null);
 
-const createForm = useHttp({ title: '', body: '' });
-const editForm = useHttp({ title: '', body: '' });
+const createForm = useHttp({ title: "", body: "" });
+const editForm = useHttp({ title: "", body: "" });
 const deleteRequest = useHttp({});
 
 function handleRecordsResponse(
@@ -102,29 +104,32 @@ function handleRecordsResponse(
     message: string,
 ): void {
     records.value = data.records;
-    databaseStatus.value = 'passed';
+    databaseStatus.value = "passed";
     databaseMessage.value = message;
 }
 
 function handleDatabaseFailure(response: { data: unknown }): void {
-    databaseStatus.value = 'failed';
-    databaseMessage.value = errorMessage(response.data, 'Database request failed.');
+    databaseStatus.value = "failed";
+    databaseMessage.value = errorMessage(
+        response.data,
+        "Database request failed.",
+    );
 }
 
 function createRecord(): void {
-    databaseStatus.value = 'running';
+    databaseStatus.value = "running";
 
     createForm.post(storeRecord.url(), {
         onSuccess: (data) => {
             handleRecordsResponse(
                 data as { records: TestRecord[] },
-                'Record created.',
+                "Record created.",
             );
             createForm.reset();
         },
         onError: () => {
-            databaseStatus.value = 'failed';
-            databaseMessage.value = 'Validation failed.';
+            databaseStatus.value = "failed";
+            databaseMessage.value = "Validation failed.";
         },
         onHttpException: handleDatabaseFailure,
     });
@@ -133,12 +138,12 @@ function createRecord(): void {
 function startEditing(record: TestRecord): void {
     editingRecordId.value = record.id;
     editForm.title = record.title;
-    editForm.body = record.body ?? '';
+    editForm.body = record.body ?? "";
     editForm.clearErrors();
 }
 
 function saveRecord(record: TestRecord): void {
-    databaseStatus.value = 'running';
+    databaseStatus.value = "running";
 
     editForm.put(updateRecord.url(record.id), {
         onSuccess: (data) => {
@@ -149,15 +154,15 @@ function saveRecord(record: TestRecord): void {
             editingRecordId.value = null;
         },
         onError: () => {
-            databaseStatus.value = 'failed';
-            databaseMessage.value = 'Validation failed.';
+            databaseStatus.value = "failed";
+            databaseMessage.value = "Validation failed.";
         },
         onHttpException: handleDatabaseFailure,
     });
 }
 
 function deleteRecord(record: TestRecord): void {
-    databaseStatus.value = 'running';
+    databaseStatus.value = "running";
 
     deleteRequest.delete(destroyRecord.url(record.id), {
         onSuccess: (data) =>
@@ -181,28 +186,67 @@ type StorageResult = {
 };
 
 const storageForm = useHttp({
-    disk: props.disks.includes('s3') ? 's3' : props.environment.filesystem,
+    disk: props.disks.includes("s3") ? "s3" : props.environment.filesystem,
 });
-const storageStatus = ref<TestStatus>('idle');
+const storageStatus = ref<TestStatus>("idle");
 const storageResult = ref<StorageResult | null>(null);
 
 function runStorageTest(): void {
-    storageStatus.value = 'running';
+    storageStatus.value = "running";
     storageResult.value = null;
 
     storageForm.post(storage.url(), {
         onSuccess: (data) => {
             storageResult.value = data as StorageResult;
             storageStatus.value = storageResult.value.success
-                ? 'passed'
-                : 'failed';
+                ? "passed"
+                : "failed";
         },
         onError: () => {
-            storageStatus.value = 'failed';
+            storageStatus.value = "failed";
         },
         onHttpException: (response) => {
             storageResult.value = response.data as unknown as StorageResult;
-            storageStatus.value = 'failed';
+            storageStatus.value = "failed";
+        },
+    });
+}
+
+/*
+ * Cache
+ */
+type CacheResult = {
+    success: boolean;
+    store: string;
+    driver?: string;
+    key?: string;
+    checks?: Record<string, boolean>;
+    error?: string;
+};
+
+const cacheForm = useHttp({
+    store: props.cacheStores.includes("redis")
+        ? "redis"
+        : props.environment.cache,
+});
+const cacheStatus = ref<TestStatus>("idle");
+const cacheResult = ref<CacheResult | null>(null);
+
+function runCacheTest(): void {
+    cacheStatus.value = "running";
+    cacheResult.value = null;
+
+    cacheForm.post(cache.url(), {
+        onSuccess: (data) => {
+            cacheResult.value = data as CacheResult;
+            cacheStatus.value = cacheResult.value.success ? "passed" : "failed";
+        },
+        onError: () => {
+            cacheStatus.value = "failed";
+        },
+        onHttpException: (response) => {
+            cacheResult.value = response.data as unknown as CacheResult;
+            cacheStatus.value = "failed";
         },
     });
 }
@@ -219,9 +263,9 @@ type QueueResult = {
 
 const queueDispatch = useHttp({});
 const queuePoll = useHttp({});
-const queueStatus = ref<TestStatus>('idle');
+const queueStatus = ref<TestStatus>("idle");
 const queueResult = ref<QueueResult | null>(null);
-const queueMessage = ref('');
+const queueMessage = ref("");
 let queuePollTimer: ReturnType<typeof setInterval> | null = null;
 const queuePollLimit = 30;
 
@@ -234,9 +278,9 @@ function stopQueuePolling(): void {
 
 function runQueueTest(): void {
     stopQueuePolling();
-    queueStatus.value = 'running';
+    queueStatus.value = "running";
     queueResult.value = null;
-    queueMessage.value = 'Dispatching job…';
+    queueMessage.value = "Dispatching job…";
 
     queueDispatch.post(dispatchJob.url(), {
         onSuccess: (data) => {
@@ -244,18 +288,21 @@ function runQueueTest(): void {
             queueResult.value = result;
 
             if (result.processed_at) {
-                queueStatus.value = 'passed';
-                queueMessage.value = 'Job processed immediately (sync driver).';
+                queueStatus.value = "passed";
+                queueMessage.value = "Job processed immediately (sync driver).";
 
                 return;
             }
 
-            queueMessage.value = 'Waiting for a worker to process the job…';
+            queueMessage.value = "Waiting for a worker to process the job…";
             pollQueueStatus(result.token);
         },
         onHttpException: (response) => {
-            queueStatus.value = 'failed';
-            queueMessage.value = errorMessage(response.data, 'Dispatch failed.');
+            queueStatus.value = "failed";
+            queueMessage.value = errorMessage(
+                response.data,
+                "Dispatch failed.",
+            );
         },
     });
 }
@@ -268,7 +315,7 @@ function pollQueueStatus(token: string): void {
 
         if (attempts > queuePollLimit) {
             stopQueuePolling();
-            queueStatus.value = 'failed';
+            queueStatus.value = "failed";
             queueMessage.value = `Job not processed after ${queuePollLimit * 2}s. Is a queue worker running?`;
 
             return;
@@ -281,8 +328,8 @@ function pollQueueStatus(token: string): void {
                 if (result.processed_at && queueResult.value) {
                     stopQueuePolling();
                     queueResult.value.processed_at = result.processed_at;
-                    queueStatus.value = 'passed';
-                    queueMessage.value = 'Job processed by a queue worker.';
+                    queueStatus.value = "passed";
+                    queueMessage.value = "Job processed by a queue worker.";
                 }
             },
         });
@@ -310,32 +357,36 @@ useIntervalFn(refreshScheduler, 15000);
 /*
  * Email
  */
-const mailForm = useHttp({ email: '', queued: false });
-const mailStatus = ref<TestStatus>('idle');
-const mailMessage = ref('');
+const mailForm = useHttp({ email: "", queued: false });
+const mailStatus = ref<TestStatus>("idle");
+const mailMessage = ref("");
 
 function runMailTest(): void {
-    mailStatus.value = 'running';
-    mailMessage.value = '';
+    mailStatus.value = "running";
+    mailMessage.value = "";
 
     mailForm.post(sendMail.url(), {
         onSuccess: (data) => {
-            const result = data as { email: string; mailer: string; queued: boolean };
-            mailStatus.value = 'passed';
+            const result = data as {
+                email: string;
+                mailer: string;
+                queued: boolean;
+            };
+            mailStatus.value = "passed";
             mailMessage.value = result.queued
                 ? `Email queued for ${result.email} via "${result.mailer}". A worker must process it.`
                 : `Email sent to ${result.email} via "${result.mailer}".`;
         },
         onError: () => {
-            mailStatus.value = 'failed';
-            mailMessage.value = 'Validation failed.';
+            mailStatus.value = "failed";
+            mailMessage.value = "Validation failed.";
         },
         onHttpException: (response) => {
-            mailStatus.value = 'failed';
+            mailStatus.value = "failed";
             mailMessage.value =
                 response.status === 429
-                    ? 'Too many emails. Try again in a minute.'
-                    : errorMessage(response.data, 'Sending failed.');
+                    ? "Too many emails. Try again in a minute."
+                    : errorMessage(response.data, "Sending failed.");
         },
     });
 }
@@ -349,8 +400,8 @@ function runMailTest(): void {
             <header class="flex flex-col gap-3">
                 <h1 class="text-2xl font-semibold">Laravel Feature Tests</h1>
                 <p class="text-sm text-muted-foreground">
-                    Check that the database, object storage, scheduler, queue
-                    and mail are wired up in this environment.
+                    Check that the database, object storage, cache, scheduler,
+                    queue and mail are wired up in this environment.
                 </p>
                 <div class="flex flex-wrap gap-2">
                     <Badge
@@ -469,7 +520,7 @@ function runMailTest(): void {
                                         <td
                                             class="px-3 py-2 text-muted-foreground"
                                         >
-                                            {{ record.body || '—' }}
+                                            {{ record.body || "—" }}
                                         </td>
                                     </template>
                                     <td
@@ -547,8 +598,8 @@ function runMailTest(): void {
                             </Badge>
                         </div>
                         <CardDescription>
-                            Uploads a temporary file, checks it exists, reads
-                            it back and deletes it.
+                            Uploads a temporary file, checks it exists, reads it
+                            back and deletes it.
                         </CardDescription>
                     </CardHeader>
                     <CardContent class="flex flex-col gap-4">
@@ -587,26 +638,109 @@ function runMailTest(): void {
                                 class="flex flex-wrap gap-2"
                             >
                                 <Badge
-                                    v-for="(passed, check) in storageResult.checks"
+                                    v-for="(
+                                        passed, check
+                                    ) in storageResult.checks"
                                     :key="check"
                                     :variant="
                                         passed ? 'secondary' : 'destructive'
                                     "
                                 >
-                                    {{ passed ? '✓' : '✗' }} {{ check }}
+                                    {{ passed ? "✓" : "✗" }} {{ check }}
                                 </Badge>
                             </div>
                             <p
                                 v-if="storageResult.path"
                                 class="break-all text-muted-foreground"
                             >
-                                {{ storageResult.disk }}:{{ storageResult.path }}
+                                {{ storageResult.disk }}:{{
+                                    storageResult.path
+                                }}
                             </p>
                             <p
                                 v-if="storageResult.error"
                                 class="break-all text-red-600 dark:text-red-500"
                             >
                                 {{ storageResult.error }}
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <!-- Cache -->
+                <Card>
+                    <CardHeader>
+                        <div class="flex items-center justify-between gap-2">
+                            <CardTitle>Cache</CardTitle>
+                            <Badge :variant="statusVariant(cacheStatus)">
+                                {{ statusLabels[cacheStatus] }}
+                            </Badge>
+                        </div>
+                        <CardDescription>
+                            Writes a temporary key, reads it back, increments a
+                            counter, acquires a lock and forgets the keys.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent class="flex flex-col gap-4">
+                        <form
+                            class="flex items-end gap-3"
+                            @submit.prevent="runCacheTest"
+                        >
+                            <div class="grid flex-1 gap-1">
+                                <Label for="cache-store">Store</Label>
+                                <select
+                                    id="cache-store"
+                                    v-model="cacheForm.store"
+                                    class="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
+                                >
+                                    <option
+                                        v-for="store in cacheStores"
+                                        :key="store"
+                                        :value="store"
+                                    >
+                                        {{ store }}
+                                    </option>
+                                </select>
+                            </div>
+                            <Button
+                                type="submit"
+                                :disabled="cacheForm.processing"
+                            >
+                                Run test
+                            </Button>
+                        </form>
+                        <InputError :message="cacheForm.errors.store" />
+
+                        <div v-if="cacheResult" class="grid gap-2 text-sm">
+                            <div
+                                v-if="cacheResult.checks"
+                                class="flex flex-wrap gap-2"
+                            >
+                                <Badge
+                                    v-for="(
+                                        passed, check
+                                    ) in cacheResult.checks"
+                                    :key="check"
+                                    :variant="
+                                        passed ? 'secondary' : 'destructive'
+                                    "
+                                >
+                                    {{ passed ? "✓" : "✗" }} {{ check }}
+                                </Badge>
+                            </div>
+                            <p
+                                v-if="cacheResult.key"
+                                class="break-all text-muted-foreground"
+                            >
+                                {{ cacheResult.store }} ({{
+                                    cacheResult.driver
+                                }}):{{ cacheResult.key }}
+                            </p>
+                            <p
+                                v-if="cacheResult.error"
+                                class="break-all text-red-600 dark:text-red-500"
+                            >
+                                {{ cacheResult.error }}
                             </p>
                         </div>
                     </CardContent>
@@ -649,7 +783,11 @@ function runMailTest(): void {
                             <dd class="break-all">{{ queueResult.token }}</dd>
                             <dt class="text-muted-foreground">Dispatched</dt>
                             <dd>
-                                {{ formatTime(queueResult.dispatched_at ?? null) }}
+                                {{
+                                    formatTime(
+                                        queueResult.dispatched_at ?? null,
+                                    )
+                                }}
                             </dd>
                             <dt class="text-muted-foreground">Processed</dt>
                             <dd>{{ formatTime(queueResult.processed_at) }}</dd>
@@ -677,10 +815,10 @@ function runMailTest(): void {
                             >
                                 {{
                                     scheduler.healthy
-                                        ? 'Running'
+                                        ? "Running"
                                         : scheduler.last_run_at
-                                          ? 'Stale'
-                                          : 'Never run'
+                                          ? "Stale"
+                                          : "Never run"
                                 }}
                             </Badge>
                         </div>

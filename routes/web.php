@@ -12,6 +12,7 @@ Route::prefix('feature-tests')->name('feature-tests.')->controller(FeatureTestCo
     Route::put('records/{record}', 'updateRecord')->name('records.update');
     Route::delete('records/{record}', 'destroyRecord')->name('records.destroy');
     Route::post('storage', 'storage')->name('storage');
+    Route::post('cache', 'cache')->name('cache');
     Route::post('queue', 'dispatchJob')->name('queue.dispatch');
     Route::get('queue/{token}', 'jobStatus')->name('queue.status');
     Route::get('scheduler', 'schedulerHeartbeat')->name('scheduler');

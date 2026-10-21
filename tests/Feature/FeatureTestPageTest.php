@@ -19,6 +19,7 @@ test('the root route renders the feature test page', function () {
             ->component('FeatureTests')
             ->has('records', 2)
             ->has('disks')
+            ->has('cacheStores')
             ->where('scheduler.healthy', false)
         );
 });
@@ -66,6 +67,22 @@ test('the storage test rejects unknown disks', function () {
     $this->postJson(route('feature-tests.storage'), ['disk' => 'missing'])
         ->assertUnprocessable()
         ->assertJsonValidationErrors('disk');
+});
+
+test('the cache test writes, reads, increments, locks and forgets a key', function () {
+    $this->postJson(route('feature-tests.cache'), ['store' => 'array'])
+        ->assertOk()
+        ->assertJson([
+            'success' => true,
+            'driver' => 'array',
+            'checks' => ['write' => true, 'read' => true, 'increment' => true, 'lock' => true, 'delete' => true],
+        ]);
+});
+
+test('the cache test rejects unknown stores', function () {
+    $this->postJson(route('feature-tests.cache'), ['store' => 'missing'])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('store');
 });
 
 test('the queue test dispatches a job', function () {

@@ -7,6 +7,7 @@ use App\Http\Requests\TestRecordRequest;
 use App\Jobs\FeatureTestJob;
 use App\Mail\FeatureTestMail;
 use App\Models\TestRecord;
+use Illuminate\Contracts\Cache\LockProvider;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -40,8 +41,10 @@ class FeatureTestController extends Controller
                 'queue' => config('queue.default'),
                 'mailer' => config('mail.default'),
                 'cache' => config('cache.default'),
+                'redis_client' => config('database.redis.client'),
             ],
             'disks' => array_keys(config('filesystems.disks')),
+            'cacheStores' => array_keys(config('cache.stores')),
             'records' => $this->latestRecords(),
             'scheduler' => $this->schedulerStatus(),
         ]);
@@ -123,6 +126,58 @@ class FeatureTestController extends Controller
                 'read' => $contentMatches,
                 'delete' => $deleted,
             ],
+        ]);
+    }
+
+    /**
+     * Write, read, increment, lock and forget a temporary key on the given cache store.
+     */
+    public function cache(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'store' => ['required', 'string', Rule::in(array_keys(config('cache.stores')))],
+        ]);
+
+        $store = Cache::store($validated['store']);
+        $key = 'feature-tests:cache:'.Str::uuid();
+        $value = 'Cache test: '.now()->toIso8601String();
+
+        try {
+            $written = $store->put($key, $value, 60);
+            $valueMatches = $store->get($key) === $value;
+
+            $store->put($key.':counter', 1, 60);
+            $incremented = (int) $store->increment($key.':counter') === 2;
+
+            $lock = $store->getStore() instanceof LockProvider ? $store->lock($key.':lock', 10) : null;
+            $locked = $lock?->get() ?? null;
+            $lock?->release();
+
+            $deleted = $store->forget($key) && $store->forget($key.':counter') && ! $store->has($key);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return response()->json([
+                'success' => false,
+                'store' => $validated['store'],
+                'error' => $exception->getMessage(),
+            ], 500);
+        }
+
+        $checks = array_filter([
+            'write' => $written,
+            'read' => $valueMatches,
+            'increment' => $incremented,
+            'lock' => $locked,
+            'delete' => $deleted,
+        ], fn (?bool $passed) => $passed !== null);
+
+        return response()->json([
+            'success' => ! in_array(false, $checks, true),
+            'store' => $validated['store'],
+            'driver' => config("cache.stores.{$validated['store']}.driver"),
+            'key' => $key,
+            'checks' => $checks,
         ]);
     }
 
