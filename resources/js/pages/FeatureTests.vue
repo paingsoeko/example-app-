@@ -382,17 +382,24 @@ function failWebSocketTest(message: string): void {
 /**
  * Connect to Reverb using the Pusher protocol, subscribe to a public channel,
  * ask the server to broadcast on it and wait for the event to arrive.
+ *
+ * The browser uses the public VITE_REVERB_* settings when they are set, since
+ * REVERB_HOST may be an internal address only the application server can reach.
  */
 function runWebSocketTest(): void {
     closeWebSocket();
     websocketResult.value = null;
 
-    const { key, host, port, scheme } = props.websockets;
+    const key = import.meta.env.VITE_REVERB_APP_KEY || props.websockets.key;
+    const host = import.meta.env.VITE_REVERB_HOST || props.websockets.host;
+    const port = import.meta.env.VITE_REVERB_PORT || props.websockets.port;
+    const scheme =
+        import.meta.env.VITE_REVERB_SCHEME || props.websockets.scheme;
 
     if (!key || !host) {
         websocketStatus.value = 'failed';
         websocketMessage.value =
-            'Reverb is not configured. Set REVERB_APP_KEY and REVERB_HOST.';
+            'Reverb is not configured. Set VITE_REVERB_APP_KEY and VITE_REVERB_HOST.';
 
         return;
     }
