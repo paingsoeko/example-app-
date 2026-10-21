@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\FeatureTestBroadcast;
 use App\Http\Requests\SendTestMailRequest;
 use App\Http\Requests\TestRecordRequest;
 use App\Jobs\FeatureTestJob;
@@ -42,11 +43,18 @@ class FeatureTestController extends Controller
                 'mailer' => config('mail.default'),
                 'cache' => config('cache.default'),
                 'redis_client' => config('database.redis.client'),
+                'broadcast' => config('broadcasting.default'),
             ],
             'disks' => array_keys(config('filesystems.disks')),
             'cacheStores' => array_keys(config('cache.stores')),
             'records' => $this->latestRecords(),
             'scheduler' => $this->schedulerStatus(),
+            'websockets' => [
+                'key' => config('broadcasting.connections.reverb.key'),
+                'host' => config('broadcasting.connections.reverb.options.host'),
+                'port' => (int) config('broadcasting.connections.reverb.options.port'),
+                'scheme' => config('broadcasting.connections.reverb.options.scheme'),
+            ],
         ]);
     }
 
@@ -206,6 +214,37 @@ class FeatureTestController extends Controller
         return response()->json([
             'token' => $token,
             'processed_at' => Cache::get(FeatureTestJob::cacheKey($token)),
+        ]);
+    }
+
+    /**
+     * Broadcast an event on the public channel the browser subscribed to.
+     */
+    public function broadcastEvent(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'token' => ['required', 'uuid'],
+        ]);
+
+        $sentAt = now()->toIso8601String();
+
+        try {
+            broadcast(new FeatureTestBroadcast($validated['token'], $sentAt));
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return response()->json([
+                'success' => false,
+                'connection' => config('broadcasting.default'),
+                'error' => $exception->getMessage(),
+            ], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'connection' => config('broadcasting.default'),
+            'channel' => FeatureTestBroadcast::channelName($validated['token']),
+            'sent_at' => $sentAt,
         ]);
     }
 

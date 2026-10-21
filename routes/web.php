@@ -16,6 +16,7 @@ Route::prefix('feature-tests')->name('feature-tests.')->controller(FeatureTestCo
     Route::post('queue', 'dispatchJob')->name('queue.dispatch');
     Route::get('queue/{token}', 'jobStatus')->name('queue.status');
     Route::get('scheduler', 'schedulerHeartbeat')->name('scheduler');
+    Route::post('websockets', 'broadcastEvent')->name('websockets');
     Route::post('mail', 'sendMail')->middleware('throttle:5,1')->name('mail');
 });
 

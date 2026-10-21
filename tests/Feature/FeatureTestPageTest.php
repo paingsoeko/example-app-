@@ -1,10 +1,12 @@
 <?php
 
+use App\Events\FeatureTestBroadcast;
 use App\Http\Controllers\FeatureTestController;
 use App\Jobs\FeatureTestJob;
 use App\Mail\FeatureTestMail;
 use App\Models\TestRecord;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -20,6 +22,7 @@ test('the root route renders the feature test page', function () {
             ->has('records', 2)
             ->has('disks')
             ->has('cacheStores')
+            ->has('websockets.key')
             ->where('scheduler.healthy', false)
         );
 });
@@ -105,6 +108,28 @@ test('the queue status reports when the job was processed', function () {
 
     $this->getJson(route('feature-tests.queue.status', 'unknown'))
         ->assertJsonPath('processed_at', null);
+});
+
+test('the websockets test broadcasts on the channel for the given token', function () {
+    Event::fake([FeatureTestBroadcast::class]);
+
+    $token = '9b2f8c3e-4a1d-4e6b-8f0a-2c5d7e9f1a3b';
+
+    $this->postJson(route('feature-tests.websockets'), ['token' => $token])
+        ->assertOk()
+        ->assertJson(['success' => true, 'channel' => "feature-tests.{$token}"]);
+
+    Event::assertDispatched(FeatureTestBroadcast::class, function (FeatureTestBroadcast $event) use ($token) {
+        return $event->broadcastOn()[0]->name === "feature-tests.{$token}"
+            && $event->broadcastAs() === 'feature-test.ping'
+            && $event->broadcastWith()['token'] === $token;
+    });
+});
+
+test('the websockets test requires a uuid token', function () {
+    $this->postJson(route('feature-tests.websockets'), ['token' => 'not-a-uuid'])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('token');
 });
 
 test('the scheduler heartbeat is healthy only when recent', function () {
