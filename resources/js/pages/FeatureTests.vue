@@ -84,7 +84,24 @@ function formatTime(value: string | null): string {
     return value ? new Date(value).toLocaleString() : '—';
 }
 
-function errorMessage(data: unknown, fallback: string): string {
+/**
+ * Decode an error response body, which Inertia passes as a raw string.
+ */
+function parseResponseData(data: unknown): unknown {
+    if (typeof data !== 'string') {
+        return data;
+    }
+
+    try {
+        return JSON.parse(data);
+    } catch {
+        return null;
+    }
+}
+
+function errorMessage(rawData: unknown, fallback: string): string {
+    const data = parseResponseData(rawData);
+
     if (data && typeof data === 'object' && 'error' in data) {
         return String((data as { error: unknown }).error);
     }
@@ -212,7 +229,7 @@ function runStorageTest(): void {
             storageStatus.value = 'failed';
         },
         onHttpException: (response) => {
-            storageResult.value = response.data as unknown as StorageResult;
+            storageResult.value = parseResponseData(response.data) as StorageResult;
             storageStatus.value = 'failed';
         },
     });
@@ -251,7 +268,7 @@ function runCacheTest(): void {
             cacheStatus.value = 'failed';
         },
         onHttpException: (response) => {
-            cacheResult.value = response.data as unknown as CacheResult;
+            cacheResult.value = parseResponseData(response.data) as CacheResult;
             cacheStatus.value = 'failed';
         },
     });
@@ -464,7 +481,10 @@ function runWebSocketTest(): void {
                     },
                     onHttpException: (response) => {
                         failWebSocketTest(
-                            errorMessage(response.data, 'Broadcast failed.'),
+                            errorMessage(
+                                response.data,
+                                `Broadcast failed (HTTP ${response.status}).`,
+                            ),
                         );
                     },
                     onNetworkError: () => {
