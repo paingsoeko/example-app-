@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, useHttp } from '@inertiajs/vue3';
+import { Head, Link, useHttp } from '@inertiajs/vue3';
 import { useIntervalFn } from '@vueuse/core';
 import { onUnmounted, ref } from 'vue';
 import {
@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { locationCheck } from '@/routes';
 
 type TestStatus = 'idle' | 'running' | 'passed' | 'failed';
 
@@ -581,7 +582,12 @@ function runMailTest(): void {
     <div class="min-h-screen bg-background px-4 py-10 text-foreground">
         <div class="mx-auto flex max-w-5xl flex-col gap-6">
             <header class="flex flex-col gap-3">
-                <h1 class="text-2xl font-semibold">Laravel Feature Tests</h1>
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <h1 class="text-2xl font-semibold">Laravel Feature Tests</h1>
+                    <Button as-child variant="outline">
+                        <Link :href="locationCheck()">Location check</Link>
+                    </Button>
+                </div>
                 <p class="text-sm text-muted-foreground">
                     Check that the database, object storage, cache, WebSockets, scheduler, queue
                     and mail are wired up in this environment.

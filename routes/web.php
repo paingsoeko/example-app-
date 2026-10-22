@@ -1,11 +1,16 @@
 <?php
 
 use App\Http\Controllers\FeatureTestController;
+use App\Http\Controllers\LocationCheckController;
+use App\Http\Controllers\LocationController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 Route::get('/', [FeatureTestController::class, 'index'])->name('home');
+
+Route::get('location-check', LocationCheckController::class)->name('location-check');
+Route::apiResource('locations', LocationController::class)->only(['store', 'update', 'destroy']);
 
 Route::prefix('feature-tests')->name('feature-tests.')->controller(FeatureTestController::class)->group(function () {
     Route::post('records', 'storeRecord')->name('records.store');
